@@ -242,11 +242,14 @@ void Server::convert_merge_pir_dbs()
 
     // Inform the user that the conversion and merging process has started
     std::cout << "BatchPIRServer: Converting and merging databases. This may take some time..." << std::endl;
+    std::cout << num_databases_ << std::endl;
 
     // Convert and merge each raw database into uint_64 PIR elements
     for (int i = 0; i < num_databases_; i++)
     {
+        // std::cout << i << std::endl;
         auto db = convert_to_pir_db(i);
+        // std::cout << "GETS HERE" << std::endl;
         merge_to_db(db, i);
         std::cout << "BatchPIRServer: Processed database " << i + 1 << " of " << num_databases_ << "\r" << std::flush;
     }
@@ -270,6 +273,13 @@ PirDB Server::convert_to_pir_db(int rawdb_index)
     const auto num_columns_per_entry = pir_params_.get_num_slots_per_entry();
     const auto plaintexts_per_chunk = std::ceil(total_rawdb_entries / pir_dimensions_[0]);
 
+    // std::cout << "PARAMS" << std::endl;
+    // std::cout << total_db_plaintexts << std::endl; 
+    // std::cout << total_rawdb_entries << std::endl; 
+    // std::cout << num_columns_per_entry << std::endl; 
+    // std::cout << plaintexts_per_chunk << std::endl; 
+    // std::cout << gap_ << std::endl; 
+
     // Initialize database
 
     PirDB db(total_db_plaintexts);
@@ -283,6 +293,7 @@ PirDB Server::convert_to_pir_db(int rawdb_index)
     for (int i = 0; i < total_rawdb_entries; ++i)
     {
         // cout  <<  "total_rawdb_entries: " << i << endl;
+        // std::cout << rawdb_list_[rawdb_index][i].size() << endl;
         auto coeffs = convert_to_list_of_coeff(rawdb_list_[rawdb_index][i]);
 
         int plaintext_idx = i / pir_dimensions_[0];
@@ -290,7 +301,8 @@ PirDB Server::convert_to_pir_db(int rawdb_index)
 
         for (int j = 0; j < num_columns_per_entry; j++)
         {
-
+            // std::cout << plaintext_idx << " " << total_db_plaintexts << std::endl;
+            // std::cout << slot << " " << row_size_ << std::endl;
             if (plaintext_idx >= total_db_plaintexts || slot >= row_size_)
             {
                 // Handle out-of-bounds access
@@ -364,11 +376,9 @@ PIRResponseList Server::merge_responses_chunks_buckets(vector<PIRResponseList> &
     auto num_chunk_ctx = ceil(num_slots_per_entry * 1.0 / max_empty_slots);
 
     PIRResponseList chunk_response;
-
     for (int i = 0; i < responses.size(); i++)
     {
         auto remaining_slots_entry = num_slots_per_entry;
-
         
         // number of ciphertexts needed to  pack chunks
         for (int j = 0; j < num_chunk_ctx; j++)
@@ -387,11 +397,9 @@ PIRResponseList Server::merge_responses_chunks_buckets(vector<PIRResponseList> &
             chunk_response.push_back(chunk_ct_acc);
         }
     }
-
     
     auto current_fill = gap_ * num_slots_per_entry;
-    size_t num_buckets_merged = (row_size_ / current_fill);
-
+    size_t num_buckets_merged = std::min((row_size_ / current_fill), chunk_response.size());
 
     // for now if chunks are in multiple ciphertexts then return
     // if remaining
@@ -404,13 +412,22 @@ PIRResponseList Server::merge_responses_chunks_buckets(vector<PIRResponseList> &
     current_fill = gap_ * num_slots_per_entry_rounded;
     auto merged_ctx_needed = ceil((chunk_response.size() * current_fill * 1.0) / row_size_);
 
+    // cout << current_fill << " " << row_size_ << endl; 
+    // cout << merged_ctx_needed << endl;
+    // cout << num_buckets_merged << endl; 
+
     PIRResponseList chunk_bucket_responses;
     for (int i = 0; i < merged_ctx_needed; i++)
     {
         Ciphertext ct_acc;
         for (int j = 0; j < num_buckets_merged; j++)
         {
+            // cout << j << endl;
+            // cout << chunk_response.size() << endl;
+            // cout << i * num_buckets_merged + j << endl;
             Ciphertext copy_ct_acc = chunk_response[i * num_buckets_merged + j];
+
+            // cout << "line 429" << endl;
             Ciphertext tmp_ct = copy_ct_acc;
             // copy logic: copy_ct_acc will hold coppied result
             for (size_t k = 1; k < row_size_ / current_fill; k *= 2)
@@ -439,7 +456,6 @@ PIRResponseList Server::merge_responses_chunks_buckets(vector<PIRResponseList> &
         }
         chunk_bucket_responses.push_back(ct_acc);
     }
-
     
     modulus_switch(chunk_bucket_responses);
     return chunk_bucket_responses;
@@ -933,7 +949,6 @@ PIRResponseList Server::generate_response(uint32_t client_id, PIRQuery query)
     // end = chrono::high_resolution_clock::now();
     // duration = chrono::duration_cast<chrono::milliseconds>(end - start);
     // cout << "Server: process_third_dimension time: " << duration.count() << " milliseconds" << endl;
-
     return response;
 }
 

@@ -30,14 +30,15 @@ private:
     std::unordered_map<std::string, uint64_t> map_; // map from key to bucket index
 
 
-    void simeple_hash();
-    std::vector<std::vector<uint64_t>>  simeple_hash_with_map();
+    //void simeple_hash();
+    //std::vector<std::vector<uint64_t>>  simeple_hash_with_map();
     void prepare_pir_server();
     void populate_raw_db();
+    void populate_buckets();
     std::size_t get_max_bucket_size() const;
     std::size_t get_min_bucket_size() const;
     std::size_t get_avg_bucket_size() const;
-    void balance_buckets();
+    //void balance_buckets();
     size_t get_first_dimension_size(size_t num_entries);
     PIRResponseList merge_responses(vector<PIRResponseList>& responses, uint32_t client_id);
     void print_stats() const; 

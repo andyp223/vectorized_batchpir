@@ -10,10 +10,9 @@ BatchPIRServer::BatchPIRServer(BatchPirParams &batchpir_params)
     populate_raw_db();
     std::cout << "BatchPIRServer: Raw database populated." << std::endl;
 
-    std::cout << "BatchPIRServer: Performing simple hash and bucket balancing..." << std::endl;
-    simeple_hash();
-    balance_buckets();
-    std::cout << "BatchPIRServer: Simple hash and balancing completed." << std::endl;
+    std::cout << "BatchPIRServer: Populating buckets..." << std::endl;
+    populate_buckets();
+    std::cout << "BatchPIRServer: Populating buckets complete." << std::endl;
 
     std::cout << "BatchPIRServer: Preparing PIR servers......" << std::endl;
     prepare_pir_server();
@@ -43,8 +42,20 @@ void BatchPIRServer::populate_raw_db()
     // Populate the rawdb vector with entries
     for (size_t i = 0; i < db_entries; ++i)
     {
-        rawdb_[i] = generate_random_entry();
+        // rawdb_[i] = generate_random_entry();
+        std::vector<unsigned char> tmp;
+        tmp.push_back(i);
+        rawdb_[i] = tmp;
     }
+}
+
+void BatchPIRServer::populate_buckets()
+{
+    RawDB db = rawdb_; 
+    auto num_entries = batchpir_params_->get_num_entries();
+    auto log_batch_size = log2(batchpir_params_->get_batch_size());
+    buckets_ = utils::get_buckets_from_DB(db, num_entries, log_batch_size); 
+    batchpir_params_->set_bucket_size(num_entries / pow(2,log_batch_size));
 }
 
 std::unordered_map<std::string, uint64_t> BatchPIRServer::get_hash_map() const
@@ -87,81 +98,81 @@ size_t BatchPIRServer::get_avg_bucket_size() const
     return total_size / buckets_.size();
 }
 
-void BatchPIRServer::simeple_hash()
-{
-    auto total_buckets = ceil(batchpir_params_->get_cuckoo_factor() * batchpir_params_->get_batch_size());
-    auto db_entries = batchpir_params_->get_num_entries();
-    auto num_candidates = batchpir_params_->get_num_hash_funcs();
-    buckets_.resize(total_buckets);
+// void BatchPIRServer::simeple_hash()
+// {
+//     auto total_buckets = ceil(batchpir_params_->get_cuckoo_factor() * batchpir_params_->get_batch_size());
+//     auto db_entries = batchpir_params_->get_num_entries();
+//     auto num_candidates = batchpir_params_->get_num_hash_funcs();
+//     buckets_.resize(total_buckets);
 
-    for (uint64_t i = 0; i < db_entries; i++)
-    {
-        std::vector<size_t> candidates = utils::get_candidate_buckets(i, num_candidates, total_buckets);
-        for (auto b : candidates)
-        {
-            buckets_[b].push_back(rawdb_[i]);
-            map_[to_string(i) + to_string(b)] = buckets_[b].size();
-        }
-    }
+//     for (uint64_t i = 0; i < db_entries; i++)
+//     {
+//         std::vector<size_t> candidates = utils::get_candidate_buckets(i, num_candidates, total_buckets);
+//         for (auto b : candidates)
+//         {
+//             buckets_[b].push_back(rawdb_[i]);
+//             map_[to_string(i) + to_string(b)] = buckets_[b].size();
+//         }
+//     }
 
-    // print_stats();
+//     // print_stats();
 
-    batchpir_params_->set_max_bucket_size(get_max_bucket_size());
-    balance_buckets();
-}
+//     batchpir_params_->set_max_bucket_size(get_max_bucket_size());
+//     balance_buckets();
+// }
 
-std::vector<std::vector<uint64_t>> BatchPIRServer::simeple_hash_with_map()
-{
-    auto total_buckets = ceil(batchpir_params_->get_cuckoo_factor() * batchpir_params_->get_batch_size());
-    auto db_entries = batchpir_params_->get_num_entries();
-    auto num_candidates = batchpir_params_->get_num_hash_funcs();
-    buckets_.resize(total_buckets);
+// std::vector<std::vector<uint64_t>> BatchPIRServer::simeple_hash_with_map()
+// {
+//     auto total_buckets = ceil(batchpir_params_->get_cuckoo_factor() * batchpir_params_->get_batch_size());
+//     auto db_entries = batchpir_params_->get_num_entries();
+//     auto num_candidates = batchpir_params_->get_num_hash_funcs();
+//     buckets_.resize(total_buckets);
 
-    std::vector<std::vector<uint64_t>> map(total_buckets);
+//     std::vector<std::vector<uint64_t>> map(total_buckets);
 
-    for (int i = 0; i < db_entries; i++)
-    {
-        std::vector<size_t> candidates = utils::get_candidate_buckets(i, num_candidates, total_buckets);
-        for (auto b : candidates)
-        {
-            buckets_[b].push_back(rawdb_[i]);
-            map[b].push_back(i);
-        }
-    }
+//     for (int i = 0; i < db_entries; i++)
+//     {
+//         std::vector<size_t> candidates = utils::get_candidate_buckets(i, num_candidates, total_buckets);
+//         for (auto b : candidates)
+//         {
+//             buckets_[b].push_back(rawdb_[i]);
+//             map[b].push_back(i);
+//         }
+//     }
 
-    // print_stats();
+//     // print_stats();
 
-    cout << "get_max_bucket_size: " << get_max_bucket_size() << endl;
-    batchpir_params_->set_max_bucket_size(get_max_bucket_size());
-    balance_buckets();
-    is_simple_hash_ = true;
+//     cout << "get_max_bucket_size: " << get_max_bucket_size() << endl;
+//     batchpir_params_->set_max_bucket_size(get_max_bucket_size());
+//     balance_buckets();
+//     is_simple_hash_ = true;
 
-    return map;
-}
+//     return map;
+// }
 
-void BatchPIRServer::balance_buckets()
-{
-    auto max_bucket = batchpir_params_->get_max_bucket_size();
-    auto num_buckets = buckets_.size();
-    auto entry_size = batchpir_params_->get_entry_size();
+// void BatchPIRServer::balance_buckets()
+// {
+//     auto max_bucket = batchpir_params_->get_max_bucket_size();
+//     auto num_buckets = buckets_.size();
+//     auto entry_size = batchpir_params_->get_entry_size();
 
-    auto generate_one_entry = [entry_size]() -> std::vector<unsigned char>
-    {
-        return std::vector<unsigned char>(entry_size, 1);
-    };
+//     auto generate_one_entry = [entry_size]() -> std::vector<unsigned char>
+//     {
+//         return std::vector<unsigned char>(entry_size, 1);
+//     };
 
-    for (int i = 0; i < num_buckets; i++)
-    {
-        auto size = (max_bucket - buckets_[i].size());
-        for (int j = 0; j < size; j++)
-        {
+//     for (int i = 0; i < num_buckets; i++)
+//     {
+//         auto size = (max_bucket - buckets_[i].size());
+//         for (int j = 0; j < size; j++)
+//         {
 
-            buckets_[i].push_back(generate_one_entry());
-        }
-    }
+//             buckets_[i].push_back(generate_one_entry());
+//         }
+//     }
 
-    is_simple_hash_ = true;
-}
+//     is_simple_hash_ = true;
+// }
 
 void BatchPIRServer::print_stats() const
 {
@@ -186,15 +197,10 @@ size_t BatchPIRServer::get_first_dimension_size(size_t num_entries)
 
 void BatchPIRServer::prepare_pir_server()
 {
-
-    if (!is_simple_hash_)
-    {
-        throw std::logic_error("Error: Simple hash must be performed before preparing PIR server.");
-    }
-
-    size_t max_bucket_size = batchpir_params_->get_max_bucket_size();
+    size_t bucket_size = batchpir_params_->get_bucket_size();
     size_t entry_size = batchpir_params_->get_entry_size();
     size_t dim_size = batchpir_params_->get_first_dimension_size();
+    std::cout << dim_size << std::endl;
     auto max_slots = batchpir_params_->get_seal_parameters().poly_modulus_degree();
     auto num_buckets = buckets_.size();
     size_t per_server_capacity = max_slots / dim_size;
@@ -202,13 +208,18 @@ void BatchPIRServer::prepare_pir_server()
 
     auto remaining_buckets = num_buckets;
     auto previous_idx = 0;
+
+    std::cout << num_buckets << " " <<  num_servers << std::endl;
     for (int i = 0; i < num_servers; i++)
     {
+        std::cout << i << std::endl;
         const size_t offset = std::min(per_server_capacity, num_buckets - previous_idx);
+        std::cout << "Offset is : " << offset << std::endl;
         vector<RawDB> sub_buckets(buckets_.begin() + previous_idx, buckets_.begin() + previous_idx + offset);
+        std::cout << "Sub Buckets Size is : " << sub_buckets.size() << std::endl;
         previous_idx += offset;
 
-        PirParams params(max_bucket_size, entry_size, offset, batchpir_params_->get_seal_parameters(), dim_size);
+        PirParams params(bucket_size, entry_size, offset, batchpir_params_->get_seal_parameters(), dim_size);
         params.print_values();
         Server server(params, sub_buckets);
 
@@ -218,6 +229,7 @@ void BatchPIRServer::prepare_pir_server()
 
 void BatchPIRServer::set_client_keys(uint32_t client_id, std::pair<seal::GaloisKeys, seal::RelinKeys> keys)
 {
+    cout << "Set Client Keys " << server_list_.size() << endl;
     for (int i = 0; i < server_list_.size(); i++)
     {
         server_list_[i].set_client_keys(client_id, keys);
@@ -241,6 +253,7 @@ PIRResponseList BatchPIRServer::generate_response(uint32_t client_id, vector<PIR
     {
         throw std::runtime_error("Error: Client keys not set");
     }
+
     vector<PIRResponseList> responses;
 
     for (int i = 0; i < server_list_.size(); i++)
@@ -248,7 +261,6 @@ PIRResponseList BatchPIRServer::generate_response(uint32_t client_id, vector<PIR
         responses.push_back(server_list_[i].generate_response(client_id, queries[i]));
     }
 
-    
     return merge_responses(responses, client_id);
 }
 
@@ -262,10 +274,12 @@ bool BatchPIRServer::check_decoded_entries(vector<std::vector<std::vector<unsign
     size_t entry_size = batchpir_params_->get_entry_size();
     size_t dim_size = batchpir_params_->get_first_dimension_size();
     auto max_slots = batchpir_params_->get_seal_parameters().poly_modulus_degree();
-    auto num_buckets = cuckoo_table.size();
+    auto num_buckets = buckets_.size();
     size_t per_server_capacity = max_slots / dim_size;
     size_t num_servers = ceil(num_buckets / per_server_capacity);
     auto previous_idx = 0;
+
+    cout << entries_list[0].size() << endl;
 
     for (int i = 0; i < server_list_.size(); i++)
     {

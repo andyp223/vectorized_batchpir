@@ -7,8 +7,10 @@
 #include <iostream>
 #include <cstdint>
 #include <vector>
+#include <bitset>
 #include "database_constants.h"
 #include "seal/seal.h"
+#include "assert.h"
 
 
 typedef  std::vector<seal::Ciphertext> PIRQuery;
@@ -99,7 +101,111 @@ namespace utils {
 
         return candidate_buckets;
     }
-    
+
+    inline std::vector<RawDB> get_buckets_from_DB(RawDB& db, int num_entries, int log_batch_size) {
+        std::vector<RawDB> buckets; 
+        std::vector<RawDB> prev_buckets;
+        prev_buckets.push_back(db);
+
+        for (int i = 0; i < log_batch_size; i++) {
+            int num_buckets = pow(3, 1 + i);
+            buckets.resize(num_buckets);
+            int bucket_size = num_entries / pow(2, 1 + i); 
+
+            for (int j = 0; j < num_buckets; j ++) {
+                RawDB curr_bucket; 
+                curr_bucket.resize(bucket_size); 
+
+                int prev_bucket_index = j / 3; 
+                int curr_bucket_index = j % 3; 
+
+                // cout << j << " " << prev_buckets[prev_bucket_index][0].size() << endl;
+
+                for (int k = 0; k < bucket_size; k++) {
+                    if (curr_bucket_index == 2) {
+                        std::vector<unsigned char> tmp;
+                        curr_bucket[k].resize(prev_buckets[prev_bucket_index][k].size());
+                        std::transform(std::begin(prev_buckets[prev_bucket_index][k]), std::end(prev_buckets[prev_bucket_index][k]),
+                            std::begin(prev_buckets[prev_bucket_index][bucket_size + k]),
+                            std::begin(curr_bucket[k]),
+                            std::bit_xor<unsigned char>());
+                        // curr_bucket[k] = tmp;
+                    } else {
+                        curr_bucket[k] = prev_buckets[prev_bucket_index][curr_bucket_index * bucket_size + k];
+                    }
+                }
+                buckets[j] = curr_bucket;
+            }
+            prev_buckets = buckets; 
+        }
+
+        return buckets; 
+    }
+
+    inline std::vector<uint64_t> get_indices_from_batch(std::vector<uint64_t> batch, size_t log_num_entries, size_t log_batch_size) {
+        std::vector<std::vector<uint64_t>> prev_indices;
+        std::vector<std::vector<uint64_t>> curr_indices;
+
+        for (int i = 0; i < batch.size(); i+=2) {
+            std::vector<uint64_t> tmp; 
+            uint64_t i1 = batch[i];
+            uint64_t i2 = batch[i+1];
+
+            int ind1 = i1 & (1 << log_num_entries);
+
+            i1 = i1 & ~(1 << log_num_entries);
+            i2 = i2 & ~(1 << log_num_entries);
+
+            
+            if (ind1) {
+                tmp.push_back(i2);
+                tmp.push_back(i1);
+                tmp.push_back(i2);
+            } else {
+                tmp.push_back(i1);
+                tmp.push_back(i2);
+                tmp.push_back(i2);
+            }
+            prev_indices.push_back(tmp);
+        }
+
+        for (int i = 1; i < log_batch_size; i++) {
+            assert(prev_indices.size() == pow(2, log_batch_size - i));
+            curr_indices.resize(pow(2, log_batch_size - i - 1));
+            for (int j = 0; j < pow(2, log_batch_size - i); j+= 2) {
+                std::vector<uint64_t> tmp; 
+                tmp.resize(pow(3,i + 1)); 
+
+                std::vector<uint64_t> batch1 = prev_indices[j];
+                std::vector<uint64_t> batch2 = prev_indices[j+1];
+
+                for (int k = 0; k < batch1.size(); k++) {
+                    uint64_t i1 = batch1[k];
+                    uint64_t i2 = batch2[k];
+
+                    int ind1 = i1 & (1 << (log_num_entries - i));
+
+                    i1 = i1 & ~(1 << (log_num_entries - i));
+                    i2 = i2 & ~(1 << (log_num_entries - i));
+
+                    
+                    if (ind1) {
+                        tmp[3*k] = i2;
+                        tmp[3*k + 1] = i1;
+                        tmp[3*k + 2] = i2;
+                    } else {
+                        tmp[3*k] = i1;
+                        tmp[3*k + 1] = i2;
+                        tmp[3*k + 2] = i2;
+                    }
+                }
+                curr_indices[j / 2] = tmp; 
+            }
+            prev_indices = curr_indices;
+        }
+        return curr_indices[0]; 
+    }
+
     
     inline void multiply_acum(uint64_t op1, uint64_t op2, __uint128_t& product_acum) {
         product_acum = product_acum + static_cast<__uint128_t>(op1) * static_cast<__uint128_t>(op2); 

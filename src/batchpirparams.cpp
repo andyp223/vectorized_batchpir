@@ -46,8 +46,8 @@ size_t BatchPirParams::get_max_attempts() {
     return max_attempts_;
 }
 
-size_t BatchPirParams::get_max_bucket_size() {
-    return max_bucket_size_;
+size_t BatchPirParams::get_bucket_size() {
+    return bucket_size_;
 }
 
 size_t BatchPirParams::get_first_dimension_size() {
@@ -61,20 +61,23 @@ uint64_t BatchPirParams::get_default_value(){
 void BatchPirParams::set_first_dimension_size(size_t max_bucket_size){
     size_t cube_root = std::ceil(std::cbrt(max_bucket_size));
     dim_size_ = utils::next_power_of_two(cube_root);
-    auto dim_size = dim_size_;
-    auto prev_dim_size = dim_size;
-    auto batch_size = ceil((batch_size_*cuckoo_factor_)*1.0/2);
-    while(batch_size * dim_size <= seal_params_.poly_modulus_degree()/2){
-        prev_dim_size = dim_size;
-        dim_size = utils::next_power_of_two(dim_size + 1);
+    // auto dim_size = dim_size_;
+    // auto prev_dim_size = dim_size;
+    //auto batch_size = ceil((batch_size_*cuckoo_factor_)*1.0/2);
+
+    cout << "INSIDE SET DIM SIZE" << endl; 
+    cout << dim_size_ << endl;
+    // while(batch_size * dim_size <= seal_params_.poly_modulus_degree()/2){
+    //     prev_dim_size = dim_size;
+    //     dim_size = utils::next_power_of_two(dim_size + 1);
         
-    }
-    dim_size_ = prev_dim_size;
+    // }
+    // dim_size_ = prev_dim_size;
 }
 
-void BatchPirParams::set_max_bucket_size(size_t max_bucket_size){
-    max_bucket_size_ = max_bucket_size;
-    set_first_dimension_size(max_bucket_size_);
+void BatchPirParams::set_bucket_size(size_t bucket_size){
+    bucket_size_ = bucket_size;
+    set_first_dimension_size(bucket_size_);
 }
 
 

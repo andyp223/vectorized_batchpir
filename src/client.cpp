@@ -96,7 +96,7 @@ void Client::check_noise_budget(const seal::Ciphertext& response) {
 }
 
 
-vector<RawResponses> Client::decode_merged_responses(PIRResponseList response, size_t cuckoo_size, vector<vector<uint64_t>> entry_slot_lists)
+vector<RawResponses> Client::decode_merged_responses(PIRResponseList response, size_t indices_size, vector<vector<uint64_t>> entry_slot_lists)
 {
     check_noise_budget(response[0]);
     const size_t num_slots_per_entry = pir_params_.get_num_slots_per_entry();
@@ -107,8 +107,8 @@ vector<RawResponses> Client::decode_merged_responses(PIRResponseList response, s
 
     seal::Plaintext pt;
     std::vector<uint64_t> decoded_response;
-    size_t remaining_entries = cuckoo_size;
-    std::vector<std::vector<uint64_t>> pir_entries(cuckoo_size, std::vector<uint64_t>(num_slots_per_entry_rounded, 0ULL));
+    size_t remaining_entries = indices_size;
+    std::vector<std::vector<uint64_t>> pir_entries(indices_size, std::vector<uint64_t>(num_slots_per_entry_rounded, 0ULL));
 
     int row_offset = 0;
     for (int k = 0; k < response.size(); k++)
@@ -154,7 +154,7 @@ vector<RawResponses> Client::decode_merged_responses(PIRResponseList response, s
         }
     }
 
-    remaining_entries = cuckoo_size;
+    remaining_entries = indices_size;
     vector<std::vector<std::vector<unsigned char>>> raw_entries_list;
 
     // loop over the pir_entries list in increments of gap_

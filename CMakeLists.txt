@@ -35,5 +35,5 @@ target_link_libraries(vectorized_batch_pir SEAL::seal)
 
 # Add compiler flags for optimization
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(vectorized_batch_pir PRIVATE "-O3")
+    target_compile_options(vectorized_batch_pir PRIVATE -Wall -Wextra -Wpedantic -O3 -Ofast)
 endif()

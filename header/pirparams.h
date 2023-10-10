@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <vector>
 #include <cmath>
+#include <bitset>
 #include "src/utils.h"
 #include "seal/seal.h"
 
